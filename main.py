@@ -32,8 +32,8 @@ def cls():
 def print_banner():
     print(f"""
 {B}{W}╔══════════════════════════════════════════════════════════╗
-║        FB PROFILE MANAGER v2  —  VPN Edition            ║
-║     Unique Fingerprints + VPN City Reminders             ║
+║        FB PROFILE MANAGER v3  —  MAX STEALTH            ║
+║  WebRTC Block · Battery · Network · Proxy · Plugins     ║
 ╚══════════════════════════════════════════════════════════╝{RST}
 """)
 
@@ -42,12 +42,14 @@ def print_menu():
   ── Profile Management ──────────────────────────────
   {B}[1]{RST} List all profiles
   {B}[2]{RST} Create new profile
-  {B}[3]{RST} Assign VPN city to profile       ← NEW
-  {B}[4]{RST} Bulk assign VPN cities           ← NEW
+  {B}[3]{RST} Assign VPN city to profile
+  {B}[4]{RST} Bulk assign VPN cities
   {B}[5]{RST} View profile fingerprint + VPN info
+  {B}[11]{RST} Assign proxy to profile          {Y}← NEW{RST}
+  {B}[12]{RST} Remove proxy from profile        {Y}← NEW{RST}
 
   ── Browser Launch ───────────────────────────────────
-  {B}[6]{RST} Launch profile  {Y}(shows VPN reminder first){RST}
+  {B}[6]{RST} Launch profile  {Y}(shows VPN/proxy reminder){RST}
   {B}[7]{RST} Launch multiple profiles
 
   ── Profile Tools ────────────────────────────────────
@@ -459,6 +461,70 @@ def regenerate_fingerprint():
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
+def assign_proxy():
+    profiles = list_profiles(PROFILES_DIR)
+    if not profiles:
+        print(f"{Y}  No profiles found.{RST}")
+        return
+
+    list_profiles_display()
+    name = input("  Profile name to assign proxy: ").strip()
+    if name not in profiles:
+        print(f"{R}  Profile '{name}' not found.{RST}")
+        return
+
+    print(f"\n  {W}Proxy formats accepted:{RST}")
+    print(f"  {DIM}http://host:port")
+    print(f"  http://user:pass@host:port")
+    print(f"  socks5://user:pass@host:port{RST}\n")
+
+    raw = input("  Enter proxy URL: ").strip()
+    if not raw:
+        print(f"{R}  Cancelled.{RST}")
+        return
+
+    # Parse proxy URL
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(raw if "://" in raw else f"http://{raw}")
+        proxy = {
+            "protocol": parsed.scheme or "http",
+            "host":     parsed.hostname,
+            "port":     parsed.port or 80,
+            "username": parsed.username or "",
+            "password": parsed.password or "",
+        }
+    except Exception as e:
+        print(f"{R}  Invalid proxy format: {e}{RST}")
+        return
+
+    fp = load_fingerprint(name, PROFILES_DIR)
+    fp["proxy"] = proxy
+    save_fingerprint(fp, PROFILES_DIR)
+    print(f"{G}  ✓ Proxy assigned to '{name}': {proxy['host']}:{proxy['port']}{RST}")
+    print(f"  {DIM}VPN city is now ignored — proxy handles IP routing.{RST}")
+
+def remove_proxy():
+    profiles = list_profiles(PROFILES_DIR)
+    if not profiles:
+        print(f"{Y}  No profiles found.{RST}")
+        return
+
+    list_profiles_display()
+    name = input("  Profile name to remove proxy from: ").strip()
+    if name not in profiles:
+        print(f"{R}  Profile '{name}' not found.{RST}")
+        return
+
+    fp = load_fingerprint(name, PROFILES_DIR)
+    if "proxy" in fp:
+        del fp["proxy"]
+        save_fingerprint(fp, PROFILES_DIR)
+        print(f"{G}  ✓ Proxy removed from '{name}'. Will now use VPN/local IP.{RST}")
+    else:
+        print(f"{Y}  '{name}' has no proxy assigned.{RST}")
+
+
 def main():
     Path(PROFILES_DIR).mkdir(exist_ok=True)
     print_banner()
@@ -497,6 +563,10 @@ def main():
             delete_profile()
         elif choice == "10":
             regenerate_fingerprint()
+        elif choice == "11":
+            assign_proxy()
+        elif choice == "12":
+            remove_proxy()
         else:
             print(f"{R}  Invalid choice.{RST}")
         print()

@@ -13,10 +13,8 @@ echo.
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo  [ERROR] Python not found!
-    echo.
     echo  Please install Python from https://python.org
     echo  Make sure to check "Add Python to PATH" during install!
-    echo.
     pause
     exit /b
 )
@@ -24,28 +22,26 @@ if %errorlevel% neq 0 (
 :: ── Go to the folder where this .bat file lives ──────────────
 cd /d "%~dp0"
 
-:: ── Check if Playwright is installed ────────────────────────
-python -c "import playwright" >nul 2>&1
+:: ── Remove playwright-stealth if installed (conflicts) ───────
+pip show playwright-stealth >nul 2>&1
+if %errorlevel% equ 0 (
+    echo  [!] Removing conflicting package: playwright-stealth...
+    pip uninstall playwright-stealth -y >nul 2>&1
+)
+
+:: ── Check if correct Playwright version is installed ─────────
+python -c "import playwright; assert playwright.__version__ == '1.40.0'" >nul 2>&1
 if %errorlevel% neq 0 (
-    echo  [!] Playwright not found. Installing now...
-    echo      This only happens once, please wait...
-    echo.
-    pip install playwright
-    echo.
-    echo  [!] Installing Chromium browser...
+    echo  [!] Installing correct Playwright version...
+    pip install playwright==1.40.0
     playwright install chromium
-    echo.
-    echo  [OK] Setup complete!
-    echo.
 )
 
 :: ── Launch the tool ──────────────────────────────────────────
 python main.py
 
-:: ── If it crashes, show error instead of disappearing ───────
 if %errorlevel% neq 0 (
     echo.
     echo  [ERROR] Something went wrong. See message above.
-    echo.
     pause
 )

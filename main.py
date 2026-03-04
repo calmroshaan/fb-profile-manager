@@ -112,24 +112,66 @@ def pick_vpn_city(prompt="  Assign VPN city") -> str:
                 all_cities.append(c)
     
     print()
+    print(f"  {DIM}Tip: Enter a number, type a city name to search, or type any custom city (e.g. 'Riyadh, Saudi Arabia'){RST}\n")
     while True:
         try:
-            choice = input(f"  {prompt} (number, or Enter to skip): ").strip()
+            choice = input(f"  {prompt} (number / city name / Enter to skip): ").strip()
+
+            # Skip → No VPN
             if choice == "":
                 return "No VPN (Local)"
-            idx = int(choice) - 1
-            if 0 <= idx < len(all_cities):
-                return all_cities[idx]
-            print(f"{R}  Invalid number.{RST}")
-        except ValueError:
-            # Allow typing city name directly
+
+            # Try as number first
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(all_cities):
+                    return all_cities[idx]
+                print(f"{R}  Number out of range. Try again.{RST}")
+                continue
+            except ValueError:
+                pass
+
+            # Search existing cities
             matches = [c for c in cities if choice.lower() in c.lower()]
             if len(matches) == 1:
+                print(f"  {G}✓ Found:{RST} {matches[0]}")
                 return matches[0]
             elif len(matches) > 1:
-                print(f"  Multiple matches: {matches}")
+                print(f"  {Y}Multiple matches:{RST}")
+                for i, m in enumerate(matches[:6], 1):
+                    print(f"    {B}{i}{RST}. {m}")
+                sub = input("  Pick number or press Enter to use as custom: ").strip()
+                try:
+                    return matches[int(sub) - 1]
+                except (ValueError, IndexError):
+                    pass
+
+            # Not found in list — offer to save as custom city
+            print(f"\n  {Y}'{choice}' is not in the city list.{RST}")
+            confirm = input(f"  Save '{choice}' as a custom city for this profile? (y/n): ").strip().lower()
+            if confirm == "y":
+                # Build a custom entry — ask for timezone
+                print(f"\n  {W}Enter timezone for '{choice}':{RST}")
+                print(f"  {DIM}Examples: Asia/Riyadh, Europe/Istanbul, Africa/Cairo, America/Bogota{RST}")
+                tz = input("  Timezone: ").strip()
+                if not tz:
+                    tz = "America/New_York"
+                    print(f"  {Y}No timezone entered, using default: {tz}{RST}")
+
+                custom_key = choice
+                VPN_CITIES[custom_key] = {
+                    "timezone": tz,
+                    "languages": ["en-US", "en"],
+                    "flag": "🌍",
+                    "hint": f"Custom city: {choice} — connect VPN manually",
+                }
+                print(f"  {G}✓ Custom city '{choice}' added with timezone {tz}{RST}")
+                return custom_key
             else:
-                print(f"{R}  Not found. Try a number.{RST}")
+                print(f"  Cancelled. Try again.")
+
+        except KeyboardInterrupt:
+            return "No VPN (Local)"
 
 def create_profile():
     name = input("  Profile name (e.g. fb_account_1): ").strip()

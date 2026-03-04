@@ -208,49 +208,42 @@ if (typeof AnalyserNode !== 'undefined') {{
 }}
 
 // ── 7. CLIENT RECTS NOISE (font fingerprint defense) ─────────────────────
-const _rrseed = {fp.get("canvas_noise_seed", 1234) + 1};
-const _rrrand = _crng(_rrseed);
-const _noiseAmt = 0.000001;
-
-const _origGetBCR = Element.prototype.getBoundingClientRect;
-Element.prototype.getBoundingClientRect = function() {{
-    const r = _origGetBCR.call(this);
-    const n = _rrrand() * _noiseAmt;
-    return {{
-        x: r.x + n, y: r.y + n,
-        width: r.width + n, height: r.height + n,
-        top: r.top + n, right: r.right + n,
-        bottom: r.bottom + n, left: r.left + n,
-        toJSON: () => ({{}})
+try {{
+    const _rrseed = {fp.get("canvas_noise_seed", 1234) + 1};
+    const _rrrand = _crng(_rrseed);
+    const _noiseAmt = 0.000001;
+    const _origGetBCR = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function() {{
+        const r = _origGetBCR.call(this);
+        const n = _rrrand() * _noiseAmt;
+        return new DOMRect(r.x + n, r.y + n, r.width, r.height);
     }};
-}};
-
-const _origGetCR = Range.prototype.getClientRects;
-Range.prototype.getClientRects = function() {{
-    const rects = _origGetCR.call(this);
-    return rects;
-}};
+}} catch(e) {{}}
 
 // ── 8. PLUGINS (realistic) ────────────────────────────────────────────────
-const _pluginData = {plugins};
-const _fakePlugins = _pluginData.map((p, i) => {{
-    const plugin = Object.create(Plugin.prototype);
-    def(plugin, 'name',        p.name);
-    def(plugin, 'filename',    p.filename);
-    def(plugin, 'description', p.description || '');
-    def(plugin, 'length',      (p.mimeTypes || []).length);
-    return plugin;
-}});
-const _pluginArray = Object.create(PluginArray.prototype);
-def(_pluginArray, 'length', _fakePlugins.length);
-_fakePlugins.forEach((p, i) => {{ _pluginArray[i] = p; }});
-_pluginArray[Symbol.iterator] = function*() {{ for(let p of _fakePlugins) yield p; }};
-def(navigator, 'plugins', _pluginArray);
+try {{
+    const _pluginData = {plugins};
+    const _fakePlugins = _pluginData.map((p, i) => {{
+        const plugin = Object.create(Plugin.prototype);
+        def(plugin, 'name',        p.name);
+        def(plugin, 'filename',    p.filename);
+        def(plugin, 'description', p.description || '');
+        def(plugin, 'length',      (p.mimeTypes || []).length);
+        return plugin;
+    }});
+    const _pluginArray = Object.create(PluginArray.prototype);
+    def(_pluginArray, 'length', _fakePlugins.length);
+    _fakePlugins.forEach((p, i) => {{ _pluginArray[i] = p; }});
+    _pluginArray[Symbol.iterator] = function*() {{ for(let p of _fakePlugins) yield p; }};
+    def(navigator, 'plugins', _pluginArray);
+}} catch(e) {{}}
 
 // ── 9. MIME TYPES ─────────────────────────────────────────────────────────
-const _fakeMimes = Object.create(MimeTypeArray.prototype);
-def(_fakeMimes, 'length', 2);
-def(navigator, 'mimeTypes', _fakeMimes);
+try {{
+    const _fakeMimes = Object.create(MimeTypeArray.prototype);
+    def(_fakeMimes, 'length', 2);
+    def(navigator, 'mimeTypes', _fakeMimes);
+}} catch(e) {{}}
 
 // ── 10. WEBRTC LEAK PROTECTION ────────────────────────────────────────────
 // Block WebRTC from exposing real local IP — most critical for proxy/VPN use
@@ -359,72 +352,47 @@ if (navigator.permissions) {{
 }}
 
 // ── 16. CHROME OBJECT (realistic) ─────────────────────────────────────────
+try {{
 window.chrome = {{
-    app: {{
-        isInstalled: false,
-        getDetails: () => null,
-        getIsInstalled: () => false,
-        runningState: () => 'cannot_run',
-    }},
-    runtime: {{
-        id: undefined,
-        connect: () => {{}},
-        sendMessage: () => {{}},
-        onMessage: {{ addListener: () => {{}}, removeListener: () => {{}} }},
-    }},
-    loadTimes: function() {{
-        return {{
-            requestTime:       Date.now() / 1000 - Math.random() * 2,
-            startLoadTime:     Date.now() / 1000 - Math.random() * 1.5,
-            commitLoadTime:    Date.now() / 1000 - Math.random(),
-            finishDocumentLoadTime: Date.now() / 1000 - Math.random() * 0.5,
-            finishLoadTime:    Date.now() / 1000,
-            firstPaintTime:    Date.now() / 1000 - Math.random() * 0.3,
-            firstPaintAfterLoadTime: 0,
-            navigationType:    'Other',
-            wasFetchedViaSpdy: false,
-            wasNpnNegotiated:  false,
-            npnNegotiatedProtocol: 'unknown',
-            wasAlternateProtocolAvailable: false,
-            connectionInfo:    'http/1.1',
-        }};
-    }},
-    csi: function() {{
-        return {{
-            startE:  Date.now(),
-            onloadT: Date.now() + 100 + Math.floor(Math.random() * 200),
-            pageT:   Math.random() * 3000,
-            tran:    15,
-        }};
-    }},
+    app: {{ isInstalled: false, getDetails: () => null, getIsInstalled: () => false, runningState: () => 'cannot_run' }},
+    runtime: {{ id: undefined, connect: () => {{}}, sendMessage: () => {{}}, onMessage: {{ addListener: () => {{}}, removeListener: () => {{}} }} }},
+    loadTimes: function() {{ return {{ requestTime: Date.now()/1000, startLoadTime: Date.now()/1000, commitLoadTime: Date.now()/1000, finishDocumentLoadTime: Date.now()/1000, finishLoadTime: Date.now()/1000, firstPaintTime: Date.now()/1000, firstPaintAfterLoadTime: 0, navigationType: 'Other', wasFetchedViaSpdy: false, wasNpnNegotiated: false, npnNegotiatedProtocol: 'unknown', wasAlternateProtocolAvailable: false, connectionInfo: 'http/1.1' }}; }},
+    csi: function() {{ return {{ startE: Date.now(), onloadT: Date.now()+150, pageT: 1200, tran: 15 }}; }},
 }};
+}} catch(e) {{}}
 
 // ── 17. AUTOMATION DETECTION REMOVAL ─────────────────────────────────────
 try {{ delete navigator.__proto__.webdriver; }} catch(e) {{}}
 try {{ delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array; }} catch(e) {{}}
 try {{ delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise; }} catch(e) {{}}
 try {{ delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol; }} catch(e) {{}}
-Object.defineProperty(navigator, 'webdriver', {{ get: () => undefined, configurable: true }});
+try {{
+    Object.defineProperty(navigator, 'webdriver', {{ get: () => undefined, configurable: true }});
+}} catch(e) {{}}
 
-// ── 18. HISTORY LENGTH (looks like real browsing) ─────────────────────────
+// ── 18. HISTORY (looks like real browsing) ────────────────────────────────
 try {{ history.replaceState(null, '', location.href); }} catch(e) {{}}
-
-// ── 19. FONT DETECTION DEFENSE (via CSS) ─────────────────────────────────
-// Already handled by ClientRects noise above — this is the CSS layer
-const _origOffsetWidth  = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
-const _origOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
-if (_origOffsetWidth && _origOffsetHeight) {{
-    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {{
-        get: function() {{
-            const w = _origOffsetWidth.get.call(this);
-            return w ? w + (_crng({fp["canvas_noise_seed"]+7})() * 0.01 - 0.005) : w;
-        }},
-        configurable: true
-    }});
-}}
 
 }})(); // end IIFE
 """
+
+
+async def find_chrome_path() -> str:
+    """Find real Chrome installation on Windows"""
+    candidates = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%PROGRAMFILES%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%PROGRAMFILES(X86)%\Google\Chrome\Application\chrome.exe"),
+        # Chrome Beta / Dev / Canary
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome Beta\Application\chrome.exe"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome SxS\Application\chrome.exe"),
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return None  # Fall back to Playwright Chromium
 
 
 async def launch_browser(profile_name: str,
@@ -466,25 +434,29 @@ async def launch_browser(profile_name: str,
     chrome_ver = fp.get("chrome_version", "120")
     args = [
         "--disable-blink-features=AutomationControlled",
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
         "--no-first-run",
-        "--no-zygote",
-        "--disable-infobars",
+        "--no-default-browser-check",
         "--disable-notifications",
-        "--disable-popup-blocking",
         f"--window-size={WINDOW_WIDTH},{WINDOW_HEIGHT + 80}",
         "--window-position=50,50",
         f"--lang={fp['languages'][0]}",
-        # Disable features that leak automation
-        "--disable-features=IsolateOrigins,site-per-process,AutofillServerCommunication",
-        "--disable-blink-features=AutomationControlled",
-        # Disable WebRTC IP handling leak via Chrome flag
+        "--disable-features=AutofillServerCommunication",
+        # WebRTC IP protection
         "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+        # ── These 3 together hide the "controlled by automation" banner ──
+        "--disable-blink-features=AutomationControlled",
+        "--disable-automation",
+        "--hide-scrollbars",
     ]
+
+    chrome_path = await find_chrome_path()
+
+    if chrome_path:
+        print(f"  Browser:  ✅ Real Chrome → {chrome_path}")
+    else:
+        print(f"  Browser:  ⚠️  Real Chrome not found — using Playwright Chromium (less stealthy)")
+        print(f"  Tip: Install Google Chrome from https://chrome.google.com for best results")
 
     launch_kwargs = dict(
         user_data_dir=user_data_dir,
@@ -496,6 +468,10 @@ async def launch_browser(profile_name: str,
         device_scale_factor=fp.get("device_pixel_ratio", 1.0),
         color_scheme="no-preference",
         ignore_https_errors=True,
+        ignore_default_args=[
+            "--enable-automation",
+            "--enable-blink-features=IdleDetection",
+        ],
         args=args,
         extra_http_headers={
             "Accept-Language": ",".join(fp["languages"]),
@@ -503,31 +479,45 @@ async def launch_browser(profile_name: str,
         }
     )
 
+    if chrome_path:
+        launch_kwargs["executable_path"] = chrome_path
+
     if proxy_config:
         launch_kwargs["proxy"] = proxy_config
 
     async with async_playwright() as p:
         browser = await p.chromium.launch_persistent_context(**launch_kwargs)
 
-        # Inject stealth into every frame including iframes
-        await browser.add_init_script(stealth_js)
-
+        # Inject stealth into main frame ONLY — not iframes
+        # Injecting into Facebook's internal iframes caused renderer crashes
         page = browser.pages[0] if browser.pages else await browser.new_page()
+        await page.add_init_script(stealth_js)
 
-        await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        try:
+            await page.goto(url, wait_until="commit", timeout=30000)
+        except Exception:
+            pass  # Page may redirect — that's fine, browser stays open
 
         print(f"\n[{profile_name}] ✅ Browser ready!")
         print(f"  Close the browser window to exit.\n")
 
+        # Keep alive — handle browser dying gracefully
         try:
             while True:
                 await asyncio.sleep(1)
-                if not browser.pages:
+                try:
+                    # This throws if browser is already closed
+                    if not browser.pages:
+                        break
+                except Exception:
                     break
         except (KeyboardInterrupt, asyncio.CancelledError):
             pass
         finally:
-            await browser.close()
+            try:
+                await browser.close()
+            except Exception:
+                pass  # Browser already closed — that's fine
             print(f"[{profile_name}] Browser closed.")
 
 

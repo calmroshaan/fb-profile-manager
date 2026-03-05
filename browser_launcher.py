@@ -16,6 +16,10 @@ New in v3:
   - chrome.app / chrome.runtime realistic object
 """
 
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
 import asyncio
 import os
 import json
@@ -45,14 +49,14 @@ def build_stealth_script(fp: dict) -> str:
     wgl_max_tex  = fp.get("webgl_max_texture", 16384)
 
     return f"""
-// ════════════════════════════════════════════════════════════════════════
-//  STEALTH INJECTION v3 — Maximum fingerprint protection
-// ════════════════════════════════════════════════════════════════════════
+// ========================================================================
+//  STEALTH INJECTION v3 - Maximum fingerprint protection
+// ========================================================================
 
 (function() {{
 'use strict';
 
-// ── Utility: safe property override ──────────────────────────────────────
+// -- Utility: safe property override --------------------------------------
 function def(obj, prop, value) {{
     try {{
         Object.defineProperty(obj, prop, {{
@@ -63,7 +67,7 @@ function def(obj, prop, value) {{
     }} catch(e) {{}}
 }}
 
-// ── 1. NAVIGATOR ─────────────────────────────────────────────────────────
+// -- 1. NAVIGATOR ---------------------------------------------------------
 def(navigator, 'userAgent',          '{fp["user_agent"]}');
 def(navigator, 'platform',           '{fp["platform"]}');
 def(navigator, 'hardwareConcurrency', {fp["hardware_concurrency"]});
@@ -83,7 +87,7 @@ def(navigator, 'appName',            'Netscape');
 def(navigator, 'appVersion',         '{fp["user_agent"].replace("Mozilla/", "")}');
 def(navigator, 'webdriver',           undefined);
 
-// ── 2. SCREEN ────────────────────────────────────────────────────────────
+// -- 2. SCREEN ------------------------------------------------------------
 def(screen, 'width',       {fp["screen_width"]});
 def(screen, 'height',      {fp["screen_height"]});
 def(screen, 'availWidth',  {fp["screen_width"]});
@@ -94,14 +98,14 @@ def(screen, 'colorDepth',  {fp["color_depth"]});
 def(screen, 'pixelDepth',  {fp["color_depth"]});
 def(screen, 'orientation', {{ type: 'landscape-primary', angle: 0 }});
 
-// ── 3. WINDOW ────────────────────────────────────────────────────────────
+// -- 3. WINDOW ------------------------------------------------------------
 def(window, 'devicePixelRatio', {dpr});
 def(window, 'outerWidth',       {fp["screen_width"]});
 def(window, 'outerHeight',      {fp["screen_height"]});
 def(window, 'innerWidth',       {WINDOW_WIDTH});
 def(window, 'innerHeight',      {WINDOW_HEIGHT});
 
-// ── 4. WEBGL — full parameter spoofing ───────────────────────────────────
+// -- 4. WEBGL - full parameter spoofing -----------------------------------
 function patchWebGL(ctx) {{
     if (!ctx) return;
     const orig = ctx.getParameter.bind(ctx);
@@ -143,7 +147,7 @@ HTMLCanvasElement.prototype.getContext = function(type, attrs) {{
 try {{ patchWebGL(document.createElement('canvas').getContext('webgl')); }} catch(e) {{}}
 try {{ patchWebGL(document.createElement('canvas').getContext('webgl2')); }} catch(e) {{}}
 
-// ── 5. CANVAS NOISE ──────────────────────────────────────────────────────
+// -- 5. CANVAS NOISE ------------------------------------------------------
 const _cseed = {fp["canvas_noise_seed"]};
 function _crng(s) {{
     let v = s;
@@ -186,7 +190,7 @@ HTMLCanvasElement.prototype.toBlob = function(cb, type, quality) {{
     return _origToBlob.call(this, cb, type, quality);
 }};
 
-// ── 6. AUDIO NOISE ───────────────────────────────────────────────────────
+// -- 6. AUDIO NOISE -------------------------------------------------------
 const _aseed = {fp["audio_noise_seed"]};
 const _arand = _crng(_aseed);
 if (typeof AudioBuffer !== 'undefined') {{
@@ -207,7 +211,7 @@ if (typeof AnalyserNode !== 'undefined') {{
     }};
 }}
 
-// ── 7. CLIENT RECTS NOISE (font fingerprint defense) ─────────────────────
+// -- 7. CLIENT RECTS NOISE (font fingerprint defense) ---------------------
 try {{
     const _rrseed = {fp.get("canvas_noise_seed", 1234) + 1};
     const _rrrand = _crng(_rrseed);
@@ -220,7 +224,7 @@ try {{
     }};
 }} catch(e) {{}}
 
-// ── 8. PLUGINS (realistic) ────────────────────────────────────────────────
+// -- 8. PLUGINS (realistic) ------------------------------------------------
 try {{
     const _pluginData = {plugins};
     const _fakePlugins = _pluginData.map((p, i) => {{
@@ -238,15 +242,15 @@ try {{
     def(navigator, 'plugins', _pluginArray);
 }} catch(e) {{}}
 
-// ── 9. MIME TYPES ─────────────────────────────────────────────────────────
+// -- 9. MIME TYPES ---------------------------------------------------------
 try {{
     const _fakeMimes = Object.create(MimeTypeArray.prototype);
     def(_fakeMimes, 'length', 2);
     def(navigator, 'mimeTypes', _fakeMimes);
 }} catch(e) {{}}
 
-// ── 10. WEBRTC LEAK PROTECTION ────────────────────────────────────────────
-// Block WebRTC from exposing real local IP — most critical for proxy/VPN use
+// -- 10. WEBRTC LEAK PROTECTION --------------------------------------------
+// Block WebRTC from exposing real local IP - most critical for proxy/VPN use
 if (typeof RTCPeerConnection !== 'undefined') {{
     const _OrigRTC = RTCPeerConnection;
     window.RTCPeerConnection = function(config, constraints) {{
@@ -287,7 +291,7 @@ if (typeof RTCPeerConnection !== 'undefined') {{
     if (window[name]) window[name] = window.RTCPeerConnection;
 }});
 
-// ── 11. BATTERY API ───────────────────────────────────────────────────────
+// -- 11. BATTERY API -------------------------------------------------------
 if (navigator.getBattery) {{
     navigator.getBattery = function() {{
         return Promise.resolve({{
@@ -302,7 +306,7 @@ if (navigator.getBattery) {{
     }};
 }}
 
-// ── 12. NETWORK CONNECTION API ────────────────────────────────────────────
+// -- 12. NETWORK CONNECTION API --------------------------------------------
 if ('connection' in navigator) {{
     const _fakeConn = {{
         effectiveType: '{conn_type}',
@@ -318,7 +322,7 @@ if ('connection' in navigator) {{
     def(navigator, 'webkitConnection', _fakeConn);
 }}
 
-// ── 13. MEDIA DEVICES (fake camera/mic — no real device info leaked) ──────
+// -- 13. MEDIA DEVICES (fake camera/mic - no real device info leaked) ------
 if (navigator.mediaDevices) {{
     const _origEnum = navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);
     navigator.mediaDevices.enumerateDevices = async function() {{
@@ -330,7 +334,7 @@ if (navigator.mediaDevices) {{
     }};
 }}
 
-// ── 14. SPEECH SYNTHESIS (voice fingerprint) ─────────────────────────────
+// -- 14. SPEECH SYNTHESIS (voice fingerprint) -----------------------------
 if (typeof speechSynthesis !== 'undefined') {{
     const _origGetVoices = speechSynthesis.getVoices.bind(speechSynthesis);
     speechSynthesis.getVoices = function() {{
@@ -340,7 +344,7 @@ if (typeof speechSynthesis !== 'undefined') {{
     }};
 }}
 
-// ── 15. PERMISSIONS API (hide automation flags) ───────────────────────────
+// -- 15. PERMISSIONS API (hide automation flags) ---------------------------
 if (navigator.permissions) {{
     const _origQuery = navigator.permissions.query.bind(navigator.permissions);
     navigator.permissions.query = function(params) {{
@@ -351,7 +355,7 @@ if (navigator.permissions) {{
     }};
 }}
 
-// ── 16. CHROME OBJECT (realistic) ─────────────────────────────────────────
+// -- 16. CHROME OBJECT (realistic) -----------------------------------------
 try {{
 window.chrome = {{
     app: {{ isInstalled: false, getDetails: () => null, getIsInstalled: () => false, runningState: () => 'cannot_run' }},
@@ -361,7 +365,7 @@ window.chrome = {{
 }};
 }} catch(e) {{}}
 
-// ── 17. AUTOMATION DETECTION REMOVAL ─────────────────────────────────────
+// -- 17. AUTOMATION DETECTION REMOVAL -------------------------------------
 try {{ delete navigator.__proto__.webdriver; }} catch(e) {{}}
 try {{ delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array; }} catch(e) {{}}
 try {{ delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise; }} catch(e) {{}}
@@ -370,7 +374,7 @@ try {{
     Object.defineProperty(navigator, 'webdriver', {{ get: () => undefined, configurable: true }});
 }} catch(e) {{}}
 
-// ── 18. HISTORY (looks like real browsing) ────────────────────────────────
+// -- 18. HISTORY (looks like real browsing) --------------------------------
 try {{ history.replaceState(null, '', location.href); }} catch(e) {{}}
 
 }})(); // end IIFE
@@ -406,7 +410,7 @@ async def launch_browser(profile_name: str,
     user_data_dir = os.path.join(profiles_dir, f"browser_data_{profile_name}")
     Path(user_data_dir).mkdir(exist_ok=True)
 
-    # ── Proxy config ──────────────────────────────────────────────────────
+    # -- Proxy config ------------------------------------------------------
     proxy_config = None
     proxy = fp.get("proxy")
     if proxy and proxy.get("host"):
@@ -417,7 +421,7 @@ async def launch_browser(profile_name: str,
             proxy_config["username"] = proxy["username"]
             proxy_config["password"] = proxy.get("password", "")
 
-    print(f"\n[{profile_name}] ── Launching ───────────────────────────────")
+    print(f"\n[{profile_name}] -- Launching ------------------------------")
     print(f"  UA:       {fp['user_agent'][:65]}...")
     print(f"  OS:       {fp.get('os_name','?')}  |  Platform: {fp['platform']}")
     print(f"  Screen:   {fp['screen_width']}x{fp['screen_height']}  DPR: {fp.get('device_pixel_ratio',1)}")
@@ -429,7 +433,7 @@ async def launch_browser(profile_name: str,
         print(f"  Proxy:    {proxy_config['server']}")
     else:
         print(f"  Proxy:    None (VPN mode or local)")
-    print(f"  WebRTC:   🛡️  Protected — local IP leak blocked")
+    print(f"  WebRTC:    Protected - local IP leak blocked")
 
     chrome_ver = fp.get("chrome_version", "120")
     args = [
@@ -444,7 +448,7 @@ async def launch_browser(profile_name: str,
         # WebRTC IP protection
         "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         "--webrtc-ip-handling-policy=disable_non_proxied_udp",
-        # ── These 3 together hide the "controlled by automation" banner ──
+        # -- These 3 together hide the "controlled by automation" banner --
         "--disable-blink-features=AutomationControlled",
         "--disable-automation",
         "--hide-scrollbars",
@@ -453,9 +457,9 @@ async def launch_browser(profile_name: str,
     chrome_path = await find_chrome_path()
 
     if chrome_path:
-        print(f"  Browser:  ✅ Real Chrome → {chrome_path}")
+        print(f"  Browser:  [OK] Real Chrome -> {chrome_path}")
     else:
-        print(f"  Browser:  ⚠️  Real Chrome not found — using Playwright Chromium (less stealthy)")
+        print(f"  Browser:  [WARN] Real Chrome not found - using Playwright Chromium (less stealthy)")
         print(f"  Tip: Install Google Chrome from https://chrome.google.com for best results")
 
     launch_kwargs = dict(
@@ -488,7 +492,7 @@ async def launch_browser(profile_name: str,
     async with async_playwright() as p:
         browser = await p.chromium.launch_persistent_context(**launch_kwargs)
 
-        # Inject stealth into main frame ONLY — not iframes
+        # Inject stealth into main frame ONLY - not iframes
         # Injecting into Facebook's internal iframes caused renderer crashes
         page = browser.pages[0] if browser.pages else await browser.new_page()
         await page.add_init_script(stealth_js)
@@ -496,12 +500,12 @@ async def launch_browser(profile_name: str,
         try:
             await page.goto(url, wait_until="commit", timeout=30000)
         except Exception:
-            pass  # Page may redirect — that's fine, browser stays open
+            pass  # Page may redirect - that's fine, browser stays open
 
-        print(f"\n[{profile_name}] ✅ Browser ready!")
+        print(f"\n[{profile_name}]  Browser ready!")
         print(f"  Close the browser window to exit.\n")
 
-        # Keep alive — handle browser dying gracefully
+        # Keep alive - handle browser dying gracefully
         try:
             while True:
                 await asyncio.sleep(1)
@@ -517,7 +521,7 @@ async def launch_browser(profile_name: str,
             try:
                 await browser.close()
             except Exception:
-                pass  # Browser already closed — that's fine
+                pass  # Browser already closed - that's fine
             print(f"[{profile_name}] Browser closed.")
 
 

@@ -1,7 +1,7 @@
-# ── Profile Data (private! contains your VPN cities & fingerprints) ──
+# -- Profile Data (private! contains your VPN cities & fingerprints) --
 profiles/
 
-# ── Python ───────────────────────────────────────────────────────────
+# -- Python ---------------------------------------------------
 __pycache__/
 *.py[cod]
 *.pyo
@@ -13,23 +13,27 @@ build/
 .eggs/
 pip-selfcheck.json
 
-# ── Virtual Environments ─────────────────────────────────────────────
+# -- Virtual Environments -------------------------------------
 venv/
 env/
 .venv/
 .env/
 
-# ── OS Files ─────────────────────────────────────────────────────────
+# -- OS Files -------------------------------------------------
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# ── IDE ──────────────────────────────────────────────────────────────
+# -- IDE ------------------------------------------------------
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
 
-# ── Playwright ───────────────────────────────────────────────────────
+# -- Playwright -----------------------------------------------
 playwright-report/
 test-results/
+
+# -- Logs & temp ----------------------------------------------
+*.log
+*.tmp

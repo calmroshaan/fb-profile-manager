@@ -1,50 +1,101 @@
 """
-Fingerprint Engine v3 - Maximum GoLogin-level spoofing
-Covers every detectable signal Facebook and fingerprint services check
+Fingerprint Engine v4 - Free-text VPN city + TimeZoneDB auto-timezone lookup
 """
 
 import json
 import random
 import hashlib
 import os
+import urllib.request
+import urllib.parse
 from pathlib import Path
 
-# ─── VPN City Database ────────────────────────────────────────────────────────
+TIMEZONEDB_API_KEY = "YCI6EOT71S7J"
 
-VPN_CITIES = {
-    "New York, USA":        {"timezone": "America/New_York",    "languages": ["en-US", "en"], "flag": "🇺🇸", "hint": "Search 'United States' → New York"},
-    "Los Angeles, USA":     {"timezone": "America/Los_Angeles", "languages": ["en-US", "en"], "flag": "🇺🇸", "hint": "Search 'United States' → Los Angeles"},
-    "Chicago, USA":         {"timezone": "America/Chicago",     "languages": ["en-US", "en"], "flag": "🇺🇸", "hint": "Search 'United States' → Chicago"},
-    "Dallas, USA":          {"timezone": "America/Chicago",     "languages": ["en-US", "en"], "flag": "🇺🇸", "hint": "Search 'United States' → Dallas"},
-    "Miami, USA":           {"timezone": "America/New_York",    "languages": ["en-US", "en"], "flag": "🇺🇸", "hint": "Search 'United States' → Miami"},
-    "Seattle, USA":         {"timezone": "America/Los_Angeles", "languages": ["en-US", "en"], "flag": "🇺🇸", "hint": "Search 'United States' → Seattle"},
-    "Phoenix, USA":         {"timezone": "America/Phoenix",     "languages": ["en-US", "en"], "flag": "🇺🇸", "hint": "Search 'United States' → Phoenix"},
-    "Denver, USA":          {"timezone": "America/Denver",      "languages": ["en-US", "en"], "flag": "🇺🇸", "hint": "Search 'United States' → Denver"},
-    "Atlanta, USA":         {"timezone": "America/New_York",    "languages": ["en-US", "en"], "flag": "🇺🇸", "hint": "Search 'United States' → Atlanta"},
-    "Boston, USA":          {"timezone": "America/New_York",    "languages": ["en-US", "en"], "flag": "🇺🇸", "hint": "Search 'United States' → Boston"},
-    "London, UK":           {"timezone": "Europe/London",       "languages": ["en-GB", "en"], "flag": "🇬🇧", "hint": "Search 'United Kingdom' → London"},
-    "Manchester, UK":       {"timezone": "Europe/London",       "languages": ["en-GB", "en"], "flag": "🇬🇧", "hint": "Search 'United Kingdom' → Manchester"},
-    "Toronto, Canada":      {"timezone": "America/Toronto",     "languages": ["en-CA", "en"], "flag": "🇨🇦", "hint": "Search 'Canada' → Toronto"},
-    "Vancouver, Canada":    {"timezone": "America/Vancouver",   "languages": ["en-CA", "en"], "flag": "🇨🇦", "hint": "Search 'Canada' → Vancouver"},
-    "Montreal, Canada":     {"timezone": "America/Toronto",     "languages": ["en-CA", "fr-CA", "en"], "flag": "🇨🇦", "hint": "Search 'Canada' → Montreal"},
-    "Sydney, Australia":    {"timezone": "Australia/Sydney",    "languages": ["en-AU", "en"], "flag": "🇦🇺", "hint": "Search 'Australia' → Sydney"},
-    "Melbourne, Australia": {"timezone": "Australia/Melbourne", "languages": ["en-AU", "en"], "flag": "🇦🇺", "hint": "Search 'Australia' → Melbourne"},
-    "Frankfurt, Germany":   {"timezone": "Europe/Berlin",       "languages": ["de-DE", "de", "en"], "flag": "🇩🇪", "hint": "Search 'Germany' → Frankfurt"},
-    "Berlin, Germany":      {"timezone": "Europe/Berlin",       "languages": ["de-DE", "de", "en"], "flag": "🇩🇪", "hint": "Search 'Germany' → Berlin"},
-    "Paris, France":        {"timezone": "Europe/Paris",        "languages": ["fr-FR", "fr", "en"], "flag": "🇫🇷", "hint": "Search 'France' → Paris"},
-    "Amsterdam, NL":        {"timezone": "Europe/Amsterdam",    "languages": ["nl-NL", "en"], "flag": "🇳🇱", "hint": "Search 'Netherlands' → Amsterdam"},
-    "Singapore":            {"timezone": "Asia/Singapore",      "languages": ["en-SG", "en"], "flag": "🇸🇬", "hint": "Search 'Singapore'"},
-    "Tokyo, Japan":         {"timezone": "Asia/Tokyo",          "languages": ["ja-JP", "ja", "en"], "flag": "🇯🇵", "hint": "Search 'Japan' → Tokyo"},
-    "Mumbai, India":        {"timezone": "Asia/Kolkata",        "languages": ["en-IN", "en"], "flag": "🇮🇳", "hint": "Search 'India' → Mumbai"},
-    "Delhi, India":         {"timezone": "Asia/Kolkata",        "languages": ["en-IN", "en"], "flag": "🇮🇳", "hint": "Search 'India' → Delhi"},
-    "Sao Paulo, Brazil":    {"timezone": "America/Sao_Paulo",   "languages": ["pt-BR", "pt", "en"], "flag": "🇧🇷", "hint": "Search 'Brazil' → Sao Paulo"},
-    "Dubai, UAE":           {"timezone": "Asia/Dubai",          "languages": ["ar-AE", "en"], "flag": "🇦🇪", "hint": "Search 'UAE' → Dubai"},
-    "Karachi, Pakistan":    {"timezone": "Asia/Karachi",        "languages": ["en-PK", "ur", "en"], "flag": "🇵🇰", "hint": "Search 'Pakistan' → Karachi"},
-    "Lahore, Pakistan":     {"timezone": "Asia/Karachi",        "languages": ["en-PK", "ur", "en"], "flag": "🇵🇰", "hint": "Search 'Pakistan' → Lahore"},
-    "Islamabad, Pakistan":  {"timezone": "Asia/Karachi",        "languages": ["en-PK", "ur", "en"], "flag": "🇵🇰", "hint": "Search 'Pakistan' → Islamabad"},
-    "Johannesburg, SA":     {"timezone": "Africa/Johannesburg", "languages": ["en-ZA", "en"], "flag": "🇿🇦", "hint": "Search 'South Africa' → Johannesburg"},
-    "No VPN (Local)":       {"timezone": None, "languages": ["en-US", "en"], "flag": "🖥️",  "hint": "Run without VPN — use real local IP"},
-}
+# ─── Language + Flag hints by keyword ────────────────────────────────────────
+# Used to auto-assign language/flag when city is typed freely
+REGION_HINTS = [
+    {"keywords": ["usa", "united states", "new york", "los angeles", "chicago", "dallas", "miami", "seattle", "phoenix", "denver", "atlanta", "boston"], "languages": ["en-US", "en"], "flag": "🇺🇸"},
+    {"keywords": ["uk", "united kingdom", "london", "manchester", "birmingham", "glasgow"], "languages": ["en-GB", "en"], "flag": "🇬🇧"},
+    {"keywords": ["canada", "toronto", "vancouver", "montreal", "calgary"], "languages": ["en-CA", "en"], "flag": "🇨🇦"},
+    {"keywords": ["australia", "sydney", "melbourne", "brisbane", "perth"], "languages": ["en-AU", "en"], "flag": "🇦🇺"},
+    {"keywords": ["germany", "deutschland", "berlin", "frankfurt", "munich", "hamburg"], "languages": ["de-DE", "de", "en"], "flag": "🇩🇪"},
+    {"keywords": ["france", "paris", "lyon", "marseille"], "languages": ["fr-FR", "fr", "en"], "flag": "🇫🇷"},
+    {"keywords": ["netherlands", "amsterdam", "nl", "rotterdam"], "languages": ["nl-NL", "en"], "flag": "🇳🇱"},
+    {"keywords": ["singapore"], "languages": ["en-SG", "en"], "flag": "🇸🇬"},
+    {"keywords": ["japan", "tokyo", "osaka"], "languages": ["ja-JP", "ja", "en"], "flag": "🇯🇵"},
+    {"keywords": ["india", "mumbai", "delhi", "bangalore", "hyderabad", "chennai"], "languages": ["en-IN", "en"], "flag": "🇮🇳"},
+    {"keywords": ["brazil", "sao paulo", "rio", "brasil"], "languages": ["pt-BR", "pt", "en"], "flag": "🇧🇷"},
+    {"keywords": ["uae", "dubai", "abu dhabi", "sharjah"], "languages": ["ar-AE", "en"], "flag": "🇦🇪"},
+    {"keywords": ["pakistan", "karachi", "lahore", "islamabad", "rawalpindi", "faisalabad"], "languages": ["en-PK", "ur", "en"], "flag": "🇵🇰"},
+    {"keywords": ["south africa", "johannesburg", "cape town", "durban"], "languages": ["en-ZA", "en"], "flag": "🇿🇦"},
+    {"keywords": ["turkey", "istanbul", "ankara", "turkiye"], "languages": ["tr-TR", "tr", "en"], "flag": "🇹🇷"},
+    {"keywords": ["saudi", "riyadh", "jeddah", "mecca"], "languages": ["ar-SA", "en"], "flag": "🇸🇦"},
+    {"keywords": ["egypt", "cairo", "alexandria"], "languages": ["ar-EG", "en"], "flag": "🇪🇬"},
+    {"keywords": ["italy", "rome", "milan", "italia"], "languages": ["it-IT", "it", "en"], "flag": "🇮🇹"},
+    {"keywords": ["spain", "madrid", "barcelona", "espana"], "languages": ["es-ES", "es", "en"], "flag": "🇪🇸"},
+    {"keywords": ["russia", "moscow", "saint petersburg"], "languages": ["ru-RU", "ru", "en"], "flag": "🇷🇺"},
+    {"keywords": ["china", "beijing", "shanghai", "shenzhen"], "languages": ["zh-CN", "zh", "en"], "flag": "🇨🇳"},
+    {"keywords": ["local", "no vpn", "none"], "languages": ["en-US", "en"], "flag": "🖥️"},
+]
+
+def _get_region_info(city: str) -> dict:
+    """Match city string to region for language/flag assignment."""
+    city_lower = city.lower()
+    for region in REGION_HINTS:
+        for kw in region["keywords"]:
+            if kw in city_lower:
+                return {"languages": region["languages"], "flag": region["flag"]}
+    # Default fallback
+    return {"languages": ["en-US", "en"], "flag": "🌍"}
+
+
+def get_timezone_for_city(city: str) -> str:
+    """
+    Look up timezone for a city name using TimeZoneDB API.
+    First geocodes city to lat/lng via nominatim (OpenStreetMap, free, no key),
+    then queries TimeZoneDB with coordinates.
+    Falls back to America/New_York if anything fails.
+    """
+    if not city or city.lower() in ("no vpn", "local", "none", "no vpn (local)"):
+        return "America/New_York"
+
+    try:
+        # Step 1: Geocode city name → lat/lng using OpenStreetMap Nominatim (free, no key)
+        geo_url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode({
+            "q": city,
+            "format": "json",
+            "limit": 1
+        })
+        req = urllib.request.Request(geo_url, headers={"User-Agent": "FBProfileManager/4.0"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            geo_data = json.loads(resp.read().decode())
+
+        if not geo_data:
+            return "America/New_York"
+
+        lat = geo_data[0]["lat"]
+        lng = geo_data[0]["lon"]
+
+        # Step 2: Get timezone from TimeZoneDB using lat/lng
+        tz_url = "http://api.timezonedb.com/v2.1/get-time-zone?" + urllib.parse.urlencode({
+            "key": TIMEZONEDB_API_KEY,
+            "format": "json",
+            "by": "position",
+            "lat": lat,
+            "lng": lng
+        })
+        with urllib.request.urlopen(tz_url, timeout=8) as resp:
+            tz_data = json.loads(resp.read().decode())
+
+        if tz_data.get("status") == "OK":
+            return tz_data["zoneName"]
+
+    except Exception:
+        pass
+
+    return "America/New_York"
+
 
 # ─── Data Pools ───────────────────────────────────────────────────────────────
 
@@ -60,14 +111,8 @@ USER_AGENTS = [
     {"ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",              "os": "Linux",   "browser": "chrome",  "chrome_ver": "120"},
 ]
 
-# OS → matching platform string
-OS_PLATFORM = {
-    "Windows": "Win32",
-    "Mac":     "MacIntel",
-    "Linux":   "Linux x86_64",
-}
+OS_PLATFORM = {"Windows": "Win32", "Mac": "MacIntel", "Linux": "Linux x86_64"}
 
-# OS → matching screen resolutions (Mac has different ones)
 OS_SCREENS = {
     "Windows": [(1920,1080),(1920,1080),(1920,1080),(2560,1440),(1366,768),(1536,864),(1280,720),(1680,1050)],
     "Mac":     [(2560,1600),(2560,1440),(1440,900),(1680,1050),(3024,1964)],
@@ -77,185 +122,124 @@ OS_SCREENS = {
 HARDWARE_CONCURRENCY = [2, 4, 4, 4, 6, 8, 8, 8, 12, 16]
 DEVICE_MEMORY        = [2, 4, 4, 8, 8, 8, 16]
 
-# Realistic WebGL data — vendor/renderer/shading_lang/extensions all consistent
 WEBGL_PROFILES = [
-    {
-        "vendor":   "Google Inc. (Intel)",
-        "renderer": "ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)",
-        "shading":  "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)",
-        "max_texture": 16384, "max_viewport": [32767, 32767], "aliased_line": [1, 1],
-    },
-    {
-        "vendor":   "Google Inc. (NVIDIA)",
-        "renderer": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1060 Direct3D11 vs_5_0 ps_5_0, D3D11)",
-        "shading":  "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)",
-        "max_texture": 32768, "max_viewport": [32767, 32767], "aliased_line": [1, 1],
-    },
-    {
-        "vendor":   "Google Inc. (NVIDIA)",
-        "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)",
-        "shading":  "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)",
-        "max_texture": 32768, "max_viewport": [32767, 32767], "aliased_line": [1, 1],
-    },
-    {
-        "vendor":   "Google Inc. (AMD)",
-        "renderer": "ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0 ps_5_0, D3D11)",
-        "shading":  "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)",
-        "max_texture": 16384, "max_viewport": [32767, 32767], "aliased_line": [1, 1],
-    },
-    {
-        "vendor":   "Google Inc. (Intel)",
-        "renderer": "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)",
-        "shading":  "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)",
-        "max_texture": 16384, "max_viewport": [32767, 32767], "aliased_line": [1, 1],
-    },
-    {
-        "vendor":   "Apple Inc.",
-        "renderer": "Apple GPU",
-        "shading":  "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)",
-        "max_texture": 16384, "max_viewport": [16384, 16384], "aliased_line": [1, 1],
-    },
+    {"vendor": "Google Inc. (Intel)",  "renderer": "ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)",        "shading": "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)", "max_texture": 16384},
+    {"vendor": "Google Inc. (NVIDIA)", "renderer": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1060 Direct3D11 vs_5_0 ps_5_0, D3D11)",         "shading": "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)", "max_texture": 32768},
+    {"vendor": "Google Inc. (NVIDIA)", "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)",         "shading": "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)", "max_texture": 32768},
+    {"vendor": "Google Inc. (AMD)",    "renderer": "ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0 ps_5_0, D3D11)",                  "shading": "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)", "max_texture": 16384},
+    {"vendor": "Google Inc. (Intel)",  "renderer": "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)",     "shading": "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)", "max_texture": 16384},
+    {"vendor": "Apple Inc.",           "renderer": "Apple GPU",                                                                        "shading": "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)", "max_texture": 16384},
 ]
 
-# Realistic Chrome plugin sets per OS
 PLUGIN_SETS = {
     "Windows": [
         [
-            {"name": "PDF Viewer",              "filename": "internal-pdf-viewer",     "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}, {"type": "text/pdf"}]},
-            {"name": "Chrome PDF Viewer",        "filename": "internal-pdf-viewer",     "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]},
-            {"name": "Chromium PDF Viewer",      "filename": "internal-pdf-viewer",     "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]},
-            {"name": "Microsoft Edge PDF Viewer","filename": "internal-pdf-viewer",     "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]},
-            {"name": "WebKit built-in PDF",      "filename": "internal-pdf-viewer",     "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]},
-        ],
-        [
-            {"name": "PDF Viewer",              "filename": "internal-pdf-viewer",     "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]},
-            {"name": "Chrome PDF Viewer",        "filename": "internal-pdf-viewer",     "description": "",                        "mimeTypes": [{"type": "application/pdf"}]},
+            {"name": "PDF Viewer",               "filename": "internal-pdf-viewer", "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}, {"type": "text/pdf"}]},
+            {"name": "Chrome PDF Viewer",        "filename": "internal-pdf-viewer", "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]},
+            {"name": "Chromium PDF Viewer",      "filename": "internal-pdf-viewer", "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]},
+            {"name": "Microsoft Edge PDF Viewer","filename": "internal-pdf-viewer", "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]},
+            {"name": "WebKit built-in PDF",      "filename": "internal-pdf-viewer", "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]},
         ],
     ],
     "Mac": [
         [
-            {"name": "PDF Viewer",              "filename": "internal-pdf-viewer",     "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}, {"type": "text/pdf"}]},
-            {"name": "Chrome PDF Viewer",        "filename": "internal-pdf-viewer",     "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]},
+            {"name": "PDF Viewer",        "filename": "internal-pdf-viewer", "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}, {"type": "text/pdf"}]},
+            {"name": "Chrome PDF Viewer", "filename": "internal-pdf-viewer", "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]},
         ],
     ],
     "Linux": [
-        [
-            {"name": "PDF Viewer",              "filename": "internal-pdf-viewer",     "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]},
-        ],
+        [{"name": "PDF Viewer", "filename": "internal-pdf-viewer", "description": "Portable Document Format", "mimeTypes": [{"type": "application/pdf"}]}],
     ],
 }
 
-# Realistic font sets per OS — mimics real installed fonts
 FONT_SETS = {
     "Windows": [
         ["Arial", "Arial Black", "Calibri", "Cambria", "Comic Sans MS", "Courier New", "Georgia",
-         "Impact", "Lucida Console", "Lucida Sans Unicode", "Microsoft Sans Serif", "Palatino Linotype",
-         "Segoe UI", "Tahoma", "Times New Roman", "Trebuchet MS", "Verdana", "Wingdings"],
-        ["Arial", "Calibri", "Cambria", "Consolas", "Courier New", "Georgia", "Impact",
-         "Segoe UI", "Tahoma", "Times New Roman", "Trebuchet MS", "Verdana"],
+         "Impact", "Lucida Console", "Segoe UI", "Tahoma", "Times New Roman", "Trebuchet MS", "Verdana"],
+        ["Arial", "Calibri", "Cambria", "Consolas", "Courier New", "Georgia", "Segoe UI", "Tahoma", "Verdana"],
     ],
     "Mac": [
-        ["Arial", "Arial Black", "Comic Sans MS", "Courier New", "Georgia", "Helvetica",
-         "Helvetica Neue", "Impact", "Lucida Grande", "Monaco", "Palatino", "Times New Roman",
-         "Trebuchet MS", "Verdana", "Menlo", "Optima", "Futura"],
-        ["Arial", "Helvetica", "Helvetica Neue", "Times New Roman", "Courier New",
-         "Georgia", "Verdana", "Menlo", "Monaco"],
+        ["Arial", "Helvetica", "Helvetica Neue", "Times New Roman", "Courier New", "Georgia", "Verdana", "Menlo"],
     ],
     "Linux": [
-        ["Arial", "Courier New", "DejaVu Sans", "DejaVu Serif", "FreeSerif", "Liberation Mono",
-         "Liberation Sans", "Times New Roman", "Ubuntu", "Verdana"],
+        ["Arial", "Courier New", "DejaVu Sans", "Liberation Sans", "Ubuntu", "Verdana"],
     ],
 }
 
-# Battery levels — realistic values (most laptops between 20-100%)
-BATTERY_LEVELS    = [0.23, 0.45, 0.67, 0.78, 0.89, 0.92, 0.95, 1.0]
-BATTERY_CHARGING  = [True, True, False, False, False, True]
-
-# Connection types
-CONNECTION_TYPES  = ["wifi", "wifi", "wifi", "ethernet", "4g"]
-CONNECTION_DOWN   = [10, 50, 100, 100, 50, 25]   # Mbps downlink
-CONNECTION_RTT    = [50, 50, 100, 100, 150, 200]  # ms
+BATTERY_LEVELS   = [0.23, 0.45, 0.67, 0.78, 0.89, 0.92, 0.95, 1.0]
+BATTERY_CHARGING = [True, True, False, False, False, True]
+CONNECTION_TYPES = ["wifi", "wifi", "wifi", "ethernet", "4g"]
+CONNECTION_DOWN  = [10, 50, 100, 100, 50, 25]
+CONNECTION_RTT   = [50, 50, 100, 100, 150, 200]
 
 
-def generate_fingerprint(profile_name: str, vpn_city: str = "No VPN (Local)") -> dict:
+def generate_fingerprint(profile_name: str, vpn_city: str = "No VPN (Local)", timezone: str = None) -> dict:
     seed = int(hashlib.md5(profile_name.encode()).hexdigest()[:8], 16)
     rng  = random.Random(seed)
 
-    ua_data    = rng.choice(USER_AGENTS)
-    os_name    = ua_data["os"]
-    browser    = ua_data["browser"]
-    screen     = rng.choice(OS_SCREENS[os_name])
-    webgl      = rng.choice(WEBGL_PROFILES)
-    plugins    = rng.choice(PLUGIN_SETS.get(os_name, PLUGIN_SETS["Windows"]))
-    fonts      = rng.choice(FONT_SETS.get(os_name, FONT_SETS["Windows"]))
+    ua_data  = rng.choice(USER_AGENTS)
+    os_name  = ua_data["os"]
+    browser  = ua_data["browser"]
+    screen   = rng.choice(OS_SCREENS[os_name])
+    webgl    = rng.choice(WEBGL_PROFILES)
+    plugins  = rng.choice(PLUGIN_SETS.get(os_name, PLUGIN_SETS["Windows"]))
+    fonts    = rng.choice(FONT_SETS.get(os_name, FONT_SETS["Windows"]))
 
-    city_data  = VPN_CITIES.get(vpn_city, VPN_CITIES["No VPN (Local)"])
-    timezone   = city_data["timezone"] or rng.choice([
-        "America/New_York", "America/Chicago", "America/Los_Angeles", "Europe/London"])
-    languages  = city_data["languages"]
+    region   = _get_region_info(vpn_city)
+    languages = region["languages"]
+    flag      = region["flag"]
 
-    # Battery — desktops always charging at 1.0, laptops vary
-    is_desktop = rng.random() < 0.4
-    battery_level   = 1.0 if is_desktop else rng.choice(BATTERY_LEVELS)
-    battery_charging = True if is_desktop else rng.choice(BATTERY_CHARGING)
-
-    conn_idx = rng.randint(0, len(CONNECTION_TYPES) - 1)
-
-    # Device pixel ratio — Mac retina = 2, most Windows = 1 or 1.25
-    if os_name == "Mac":
-        dpr = rng.choice([1.0, 2.0, 2.0])
+    # Timezone: use provided, or auto-lookup, or fallback
+    if timezone:
+        tz = timezone
+    elif vpn_city.lower() not in ("no vpn (local)", "no vpn", "local", "none", ""):
+        tz = get_timezone_for_city(vpn_city)
     else:
-        dpr = rng.choice([1.0, 1.0, 1.25, 1.5])
+        tz = rng.choice(["America/New_York", "America/Chicago", "America/Los_Angeles", "Europe/London"])
+
+    is_desktop       = rng.random() < 0.4
+    battery_level    = 1.0 if is_desktop else rng.choice(BATTERY_LEVELS)
+    battery_charging = True if is_desktop else rng.choice(BATTERY_CHARGING)
+    conn_idx         = rng.randint(0, len(CONNECTION_TYPES) - 1)
+    dpr = rng.choice([1.0, 2.0, 2.0]) if os_name == "Mac" else rng.choice([1.0, 1.0, 1.25, 1.5])
 
     return {
-        # ── Identity ──────────────────────────────────────────────
         "profile_name":         profile_name,
         "vpn_city":             vpn_city,
-        "vpn_flag":             city_data["flag"],
-        "vpn_hint":             city_data["hint"],
-        # ── Browser / OS ──────────────────────────────────────────
+        "vpn_flag":             flag,
+        "vpn_hint":             f"Connect VPN to {vpn_city}",
         "user_agent":           ua_data["ua"],
         "browser_type":         browser,
         "chrome_version":       ua_data.get("chrome_ver"),
         "os_name":              os_name,
         "platform":             OS_PLATFORM[os_name],
-        # ── Screen ────────────────────────────────────────────────
         "screen_width":         screen[0],
         "screen_height":        screen[1],
         "color_depth":          rng.choice([24, 24, 32]),
         "device_pixel_ratio":   dpr,
-        # ── Locale ────────────────────────────────────────────────
-        "timezone":             timezone,
+        "timezone":             tz,
         "languages":            languages,
-        # ── Hardware ──────────────────────────────────────────────
         "hardware_concurrency": rng.choice(HARDWARE_CONCURRENCY),
         "device_memory":        rng.choice(DEVICE_MEMORY),
-        # ── WebGL ─────────────────────────────────────────────────
         "webgl_vendor":         webgl["vendor"],
         "webgl_renderer":       webgl["renderer"],
         "webgl_shading_lang":   webgl["shading"],
         "webgl_max_texture":    webgl["max_texture"],
-        "webgl_max_viewport":   webgl["max_viewport"],
-        # ── Noise Seeds ───────────────────────────────────────────
+        "webgl_max_viewport":   [32767, 32767],
         "canvas_noise_seed":    rng.randint(1000, 9999),
         "audio_noise_seed":     rng.randint(1000, 9999),
         "webgl_noise_seed":     rng.randint(1000, 9999),
-        # ── Plugins & Fonts ───────────────────────────────────────
         "plugins":              plugins,
         "fonts":                fonts,
-        # ── Navigator ─────────────────────────────────────────────
         "do_not_track":         rng.choice([None, None, "1"]),
         "touch_points":         rng.choice([0, 0, 0, 1, 5]),
         "cookie_enabled":       True,
         "pdf_viewer_enabled":   rng.choice([True, True, False]),
-        # ── Battery ───────────────────────────────────────────────
         "battery_level":        battery_level,
         "battery_charging":     battery_charging,
-        # ── Network ───────────────────────────────────────────────
         "connection_type":      CONNECTION_TYPES[conn_idx],
         "connection_downlink":  CONNECTION_DOWN[conn_idx],
         "connection_rtt":       CONNECTION_RTT[conn_idx],
-        # ── Misc ──────────────────────────────────────────────────
         "vendor_sub":           "",
         "product":              "Gecko",
         "product_sub":          "20030107" if browser == "chrome" else "20100101",
@@ -282,14 +266,14 @@ def load_fingerprint(profile_name: str, profiles_dir: str = "profiles") -> dict:
 
 
 def assign_vpn_city(profile_name: str, vpn_city: str, profiles_dir: str = "profiles"):
-    fp = load_fingerprint(profile_name, profiles_dir)
-    city_data = VPN_CITIES.get(vpn_city, VPN_CITIES["No VPN (Local)"])
+    fp       = load_fingerprint(profile_name, profiles_dir)
+    region   = _get_region_info(vpn_city)
+    timezone = get_timezone_for_city(vpn_city)
     fp["vpn_city"]  = vpn_city
-    fp["vpn_flag"]  = city_data["flag"]
-    fp["vpn_hint"]  = city_data["hint"]
-    fp["languages"] = city_data["languages"]
-    if city_data["timezone"]:
-        fp["timezone"] = city_data["timezone"]
+    fp["vpn_flag"]  = region["flag"]
+    fp["vpn_hint"]  = f"Connect VPN to {vpn_city}"
+    fp["languages"] = region["languages"]
+    fp["timezone"]  = timezone
     save_fingerprint(fp, profiles_dir)
     return fp
 
@@ -300,5 +284,5 @@ def list_profiles(profiles_dir: str = "profiles") -> list:
 
 
 if __name__ == "__main__":
-    fp = generate_fingerprint("test_01", "London, UK")
+    fp = generate_fingerprint("test_01", "Dubai, UAE")
     print(json.dumps(fp, indent=2))
